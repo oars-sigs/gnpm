@@ -111,7 +111,7 @@ func installAll() error {
 
 func installOne(pkg, target string) error {
 	os.MkdirAll(modDir, 0755)
-	tmpDir := os.TempDir() + "/" + time.Now().Format("20060102150405")
+	tmpDir := strings.ReplaceAll(os.TempDir(), "\\", "/") + "/" + time.Now().Format("20060102150405")
 	os.MkdirAll(tmpDir, 0755)
 	defer os.RemoveAll(tmpDir)
 	ss := strings.Split(pkg, "@")
