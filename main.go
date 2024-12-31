@@ -46,7 +46,15 @@ func main() {
 		return
 	}
 	if len(os.Args) == 3 {
-		err = installOne(os.Args[2])
+		err = installOne(os.Args[2], "")
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
+		return
+	}
+	if len(os.Args) == 4 {
+		err = installOne(os.Args[2], os.Args[3])
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
@@ -58,7 +66,12 @@ func main() {
 }
 
 type pkgDef struct {
-	Pkgs []string `json:"pkgs"`
+	Pkgs []pkgItem `json:"pkgs"`
+}
+
+type pkgItem struct {
+	Repo   string `json:"repo"`
+	Target string `json:"target"`
 }
 
 func parsePkg() (*pkgDef, error) {
@@ -88,12 +101,16 @@ func installAll() error {
 		return err
 	}
 	for _, pkg := range p.Pkgs {
-		return installOne(pkg)
+		err = installOne(pkg.Repo, pkg.Target)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 	return nil
 }
 
-func installOne(pkg string) error {
+func installOne(pkg, target string) error {
+	os.MkdirAll(modDir, 0755)
 	tmpDir := os.TempDir() + "/" + time.Now().Format("20060102150405")
 	os.MkdirAll(tmpDir, 0755)
 	defer os.RemoveAll(tmpDir)
@@ -109,18 +126,22 @@ func installOne(pkg string) error {
 	fmt.Println(reg)
 	cmd := exec.Command("git", "clone", "--depth", "1", "-b", ss[1], "--single-branch", reg+".git")
 	cmd.Dir = tmpDir
-	err := cmd.Run()
+	cmdRes, err := cmd.CombinedOutput()
 	if err != nil {
-		return err
+		return errors.New(string(cmdRes))
 	}
 	dpaths := pss[4:]
 	pdir := strings.Join(dpaths, "/")
 	fmt.Println(pdir)
 	dpath := modDir + "/" + pdir
-	os.RemoveAll(dpath)
-	if len(dpaths) > 1 {
-		os.MkdirAll(modDir+"/"+strings.Join(pss[4:len(pss)-1], "/"), 0755)
+	if len(target) == 0 {
+		target = pdir
+	} else {
+
+		dpath = modDir + "/" + target
 	}
+	os.RemoveAll(dpath)
+	fmt.Println(tmpDir+"/"+pdir, dpath, 22222)
 
 	err = os.Rename(tmpDir+"/"+pdir, dpath)
 	if err != nil {
@@ -132,15 +153,21 @@ func installOne(pkg string) error {
 	}
 	exist := false
 	for i, pp := range p.Pkgs {
-		vss := strings.Split(pp, "@")
+		vss := strings.Split(pp.Repo, "@")
 		if vss[0] == ss[0] {
-			p.Pkgs[i] = pkg
+			p.Pkgs[i] = pkgItem{
+				Repo:   pkg,
+				Target: target,
+			}
 			exist = true
 			break
 		}
 	}
 	if !exist {
-		p.Pkgs = append(p.Pkgs, pkg)
+		p.Pkgs = append(p.Pkgs, pkgItem{
+			Repo:   pkg,
+			Target: target,
+		})
 	}
 	err = genPkg(p)
 	if err != nil {
